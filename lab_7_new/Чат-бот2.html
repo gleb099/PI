@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=cp1251"/>
+	<title></title>
+	<meta name="generator" content="LibreOffice 6.3.2.2 (Linux)"/>
+	<meta name="created" content="00:00:00"/>
+	<meta name="changed" content="00:00:00"/>
+	<style type="text/css">
+		@page { size: 8.27in 11.69in; margin: 0.79in }
+		p { margin-bottom: 0.1in; line-height: 115%; background: transparent }
+		pre { font-family: "Liberation Mono", monospace; font-size: 10pt; background: transparent }
+	</style>
+</head>
+<body lang="en-US" link="#000080" vlink="#800000" dir="ltr"><pre>
+#Импортируем все модули(библиотеки) для создания работы чат-бота
+import requests
+from time import sleep  
+from bs4 import BeautifulSoup
+import datetime
+import telebot
+from telebot import types
+import csv
+import json
+
+#Создаем функцию для шифровки данных
+#--------------------------------------------------------------------------------------------------
+def shifr(mes:str, key:int, menu:int):
+    def chose(letter:str, key):
+        #Используется шифр Цезаря -> создаем строчки с алфавитом(РУС ENG) разных регистров 
+        alphabet_eng = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
+        alphabet_ENG = "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        alphabet_rus = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяабвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+        alphabet_RUS = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+        alphabet_num = "0123456789012345678901234567890123456789"
+
+        #Делаем нужные смещения по ключу
+        if letter in alphabet_eng:
+            position = alphabet_eng.find(letter)
+            newPosition = position + key
+            return alphabet_eng[newPosition]
+
+        elif letter in alphabet_ENG:
+            position = alphabet_ENG.find(letter)
+            newPosition = position + key
+            return alphabet_ENG[newPosition]
+
+        elif letter in alphabet_rus:
+            position = alphabet_rus.find(letter)
+            newPosition = position + key
+            return alphabet_rus[newPosition]
+
+        elif letter in alphabet_RUS:
+            position = alphabet_RUS.find(letter)
+            newPosition = position + key
+            return alphabet_RUS[newPosition]
+
+        elif letter in alphabet_num:
+            position = alphabet_num.find(letter)
+            newPosition = position + key
+            return alphabet_num[newPosition]
+        else:
+            return str(letter)
+    #key: Зашифровать - 0, Расшифровать - 1
+    mes2 = ""
+    if menu == 0:
+        for i in mes:
+            mes2 += chose(i, key)
+        return mes2
+    elif menu == 1:
+        for i in mes:
+            mes2 += chose(i, -key)
+        return mes2
+    else:
+        print("")
+
+#--------------------------------------------------------------------------------------------------
+
+#Подключаем токен чат-бота, которые получили из Telegram
+token = "999490022:AAFLTlXMd0hHnTZJD4PulTdQy1EOrir79Nk"
+bot = telebot.TeleBot(token) #Подключаемся к боту по токену
+
+#--------------------------------------------------------------------------------------------------
+
+#Работа в чате-боте
+@bot.message_handler(commands=['start']) #Обработываем команду start(декоратор)
+def start_message(message): #создаем функцию стартового бота
+    user_markup = telebot.types.ReplyKeyboardMarkup(True, True)
+    user_markup.row('Войти') #создаем кнопку "войти"
+    bot.send_message(message.from_user.id, f'B2B BOTS', reply_markup=user_markup) #Отправляем первое сообщение пользователю
+
+#--------------------------------------------------------------------------------------------------
+
+@bot.message_handler(content_types = ['text']) #Обработываем сообщения, полученные от пользователя
+def get_text_messages(message): #функция получения сообщения
+    if message.text == 'Войти': #если сообщение "войти"
+        msg = bot.send_message(message.from_user.id, f'Введи логин') #тогда просим пользователя пройти авторищацию
+        bot.register_next_step_handler(msg, login)
+    elif message.text == 'База клиентов':
+    	with open('users.json') as users_file: #после авторизации подгружаем базу
+    		users = json.load(users_file) #получаем json файл
+    	print(users) #выводим в консоль для проверки
+    	fio = list(users.keys()) #получаем список с ключами из словаря, получаенного из json
+    	info = list(users.values()) #получаем список со значениями из словаря, получаенного из json
+    	for i in range(len(info)): #проходимся по всей базе
+            temp = info[i][-1] #получаем зашифорванный паспорт по конкретному пользователю
+            temp1 = info[i][-2] #получаем зашифрованный тур
+            temp2 = info[i][-3] #получаем зашифрованный номер телефона
+
+            #производим дешифрование всех данных
+            info[i][-1] = shifr(temp, 4, 1) 
+            info[i][-2] = shifr(temp1, 4, 1)
+            info[i][-3] = shifr(temp2, 4, 1)
+
+        #отправляем в чат в нужном нам формате все данные 
+    	for i in range(len(fio)):
+       		bot.send_message(message.from_user.id, f'{fio[i]} {info[i]}')
+
+#--------------------------------------------------------------------------------------------------
+
+#функция подтверждения логина
+def login(message):
+	global login
+	print(login)
+	login = message.text
+	msg = bot.send_message(message.chat.id, f'Логин подтвержден. Введи пароль.')
+	bot.register_next_step_handler(msg, passw) #переводим на функция проверки пароля
+
+#--------------------------------------------------------------------------------------------------
+
+#функция подтверждения пароля
+def passw(message):
+	global pas
+	global users
+	pas = message.text
+	print(pas)
+	msg = bot.send_message(message.chat.id, f'Доступ разрешен')
+	with open('users.json') as users_file:
+		users = json.load(users_file)
+	bot.register_next_step_handler(msg, data)
+
+#--------------------------------------------------------------------------------------------------
+
+#функция вывода нужных нам кнопок в чат-боте
+def data(message):
+	user_markup = telebot.types.ReplyKeyboardMarkup(True, True)
+	user_markup.row('/start', '/stop')
+	user_markup.row('База клиентов')
+	bot.send_message(message.from_user.id, f'Добро пожаловать', reply_markup=user_markup)
+
+#--------------------------------------------------------------------------------------------------
+
+#запускаем процесс закиливания нашего бота, чтобы он мог работать непрерывно, получая все нужные нам сообщения
+bot.polling(none_stop = True, interval = 0)
+
+#--------------------------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>
